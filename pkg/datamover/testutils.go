@@ -19,6 +19,9 @@ import (
 	"strings"
 
 	"gopkg.in/check.v1"
+	"bytes"
+	"github.com/kanisterio/kanister/pkg/kanx"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func CommandExists(cmd string) bool {
@@ -35,7 +38,7 @@ func fingerprintFromTLSCert(c *check.C, tlsCert string) string {
 	args = append(args, "-sha256")
 	args = append(args, "-in")
 	args = append(args, tlsCert)
-	output, err := ExecCommand(c, args...)
+	output, err := ExecCommandCombinedOutput(c, args...)
 	c.Assert(err, check.IsNil)
 	output = strings.TrimPrefix(output, "sha256 Fingerprint=")
 	output = strings.ReplaceAll(output, ":", "")
@@ -47,17 +50,47 @@ func readTLSCert(c *check.C, tlsCert string) string {
 	var args []string
 	args = append(args, "cat")
 	args = append(args, tlsCert)
-	output, err := ExecCommand(c, args...)
+	output, err := ExecCommandCombinedOutput(c, args...)
 	c.Assert(err, check.IsNil)
 	return output
 }
 
-func ExecCommand(c *check.C, args ...string) (string, error) {
+func ExecCommandCombinedOutput(c *check.C, args ...string) (string, error) {
 	c.Log(redactArgs(splitArgs(args)))
 	out, err := exec.Command(args[0], args[1:]...).CombinedOutput()
 	c.Log(string(out))
 
 	return string(out), err
+}
+
+func ExecCommand(c *check.C, args ...string) (string, string, error) {
+	c.Log(redactArgs(splitArgs(args)))
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout = &bytes.Buffer{}
+	cmd.Stderr = &bytes.Buffer{}
+	err := cmd.Run()
+	return stdout.String(), stderr.String(), err
+}
+
+func ExecKanxCommand(c *check.C, args ...string) (*kanx.Process, string, error) {
+	c.Log(redactArgs(splitArgs(args)))
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout = &bytes.Buffer{}
+	cmd.Stderr = &bytes.Buffer{}
+	err := cmd.Run()
+	if err != nil {
+		return nil, stderr.String(), err
+	}
+	q := &kanx.Process{}
+	err = protojson.Unmarshal(stdout.Bytes(), q)
+	if err != nil {
+		return nil, stderr.String(), err
+	}
+	return q, stderr.String(), err
 }
 
 func redactArgs(args []string) []string {

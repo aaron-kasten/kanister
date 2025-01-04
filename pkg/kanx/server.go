@@ -1,7 +1,6 @@
 package kanx
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"net"
@@ -16,23 +15,28 @@ import (
 
 	"github.com/kanisterio/kanister/pkg/field"
 	"github.com/kanisterio/kanister/pkg/log"
+	"sync"
+	"slices"
 )
 
 const (
-	tailTickDuration  = 3 * time.Second
+	tailTickDuration  = 100 * time.Millisecond
 	tempStdoutPattern = "kando.*.stdout"
 	tempStderrPattern = "kando.*.stderr"
-	streamBufferBytes = 4 * 1024 * 1024
+	streamBufferBytes = (4 * 1024 * 1024) / 2 // 4MiB max buffer size, remove to allow for JSON overhead
 )
 
 type processServiceServer struct {
 	UnimplementedProcessServiceServer
-	processes        map[int64]*process
+	mu               sync.Mutex
+	processByPid     map[int64]*process
+	processes        []*process
 	outputDir        string
 	tailTickDuration time.Duration
 }
 
 type process struct {
+	mu       sync.Mutex
 	cmd      *exec.Cmd
 	doneCh   chan struct{}
 	stdout   *os.File
@@ -44,12 +48,12 @@ type process struct {
 
 func newProcessServiceServer() *processServiceServer {
 	return &processServiceServer{
-		processes:        map[int64]*process{},
+		processByPid:     map[int64]*process{},
 		tailTickDuration: tailTickDuration,
 	}
 }
 
-func (s *processServiceServer) CreateProcesses(_ context.Context, cpr *CreateProcessRequest) (*Process, error) {
+func (s *processServiceServer) CreateProcess(_ context.Context, cpr *CreateProcessRequest) (*Process, error) {
 	stdout, err := os.CreateTemp(s.outputDir, tempStdoutPattern)
 	if err != nil {
 		return nil, err
@@ -77,11 +81,14 @@ func (s *processServiceServer) CreateProcesses(_ context.Context, cpr *CreatePro
 	if err != nil {
 		return nil, err
 	}
-	s.processes[int64(cmd.Process.Pid)] = p
+	s.mu.Lock()
+	s.processByPid[int64(cmd.Process.Pid)] = p
+	s.processes = append(s.processes, p)
+	s.mu.Unlock()
 	fields := field.M{"pid": cmd.Process.Pid, "stdout": stdout.Name(), "stderr": stderr.Name()}
 	stdoutLogWriter.SetFields(fields)
 	stderrLogWriter.SetFields(fields)
-	log.Info().Print(processToProto(p).String(), fields)
+	log.Info().Print(processToProtoWithLock(p).String(), fields)
 	go func() {
 		err := p.cmd.Wait()
 		p.err = err
@@ -96,8 +103,9 @@ func (s *processServiceServer) CreateProcesses(_ context.Context, cpr *CreatePro
 		if err != nil {
 			log.Error().WithError(err).Print("Failed to close stderr", fields)
 		}
+		can()
 		close(p.doneCh)
-		log.Info().Print(processToProto(p).String())
+		log.Info().Print(processToProtoWithLock(p).String())
 	}()
 	return &Process{
 		Pid:   int64(cmd.Process.Pid),
@@ -105,9 +113,23 @@ func (s *processServiceServer) CreateProcesses(_ context.Context, cpr *CreatePro
 	}, nil
 }
 
+func (s *processServiceServer) GetProcess(ctx context.Context, grp *ProcessPidRequest) (*Process, error) {
+	s.mu.Lock()
+	q, ok := s.processByPid[grp.GetPid()]
+	s.mu.Unlock()
+	if !ok {
+		return nil, errkit.WithStack(errProcessNotFound)
+	}
+	ps := processToProtoWithLock(q)
+	return ps, nil
+}
+
 func (s *processServiceServer) ListProcesses(lpr *ListProcessesRequest, lps ProcessService_ListProcessesServer) error {
-	for _, p := range s.processes {
-		ps := processToProto(p)
+	s.mu.Lock()
+	processes := slices.Clone(s.processes)
+	s.mu.Unlock()
+	for _, p := range processes {
+		ps := processToProtoWithLock(p)
 		err := lps.Send(ps)
 		if err != nil {
 			return err
@@ -118,8 +140,10 @@ func (s *processServiceServer) ListProcesses(lpr *ListProcessesRequest, lps Proc
 
 var errProcessNotFound = errkit.NewSentinelErr("Process not found")
 
-func (s *processServiceServer) Stdout(por *ProcessOutputRequest, ss ProcessService_StdoutServer) error {
-	p, ok := s.processes[por.Pid]
+func (s *processServiceServer) Stdout(por *ProcessPidRequest, ss ProcessService_StdoutServer) error {
+	s.mu.Lock()
+	p, ok := s.processByPid[por.Pid]
+	s.mu.Unlock()
 	if !ok {
 		return errkit.WithStack(errProcessNotFound)
 	}
@@ -127,11 +151,17 @@ func (s *processServiceServer) Stdout(por *ProcessOutputRequest, ss ProcessServi
 	if err != nil {
 		return err
 	}
-	return s.streamOutput(ss, p, fh)
+	err = s.streamStdoutOutput(ss, p, fh)
+	if err == io.EOF {
+		return nil
+	}
+	return err
 }
 
-func (s *processServiceServer) Stderr(por *ProcessOutputRequest, ss ProcessService_StderrServer) error {
-	p, ok := s.processes[por.Pid]
+func (s *processServiceServer) Stderr(por *ProcessPidRequest, ss ProcessService_StderrServer) error {
+	s.mu.Lock()
+	p, ok := s.processByPid[por.Pid]
+	s.mu.Unlock()
 	if !ok {
 		return errkit.WithStack(errProcessNotFound)
 	}
@@ -139,22 +169,28 @@ func (s *processServiceServer) Stderr(por *ProcessOutputRequest, ss ProcessServi
 	if err != nil {
 		return err
 	}
-	return s.streamOutput(ss, p, fh)
+	err = s.streamStderrOutput(ss, p, fh)
+	if err == io.EOF {
+		return nil
+	}
+	return err
 }
 
-type sender interface {
-	Send(*Output) error
+type stdoutSender interface {
+	Send(*StdoutOutput) error
 }
 
-func (s *processServiceServer) streamOutput(ss sender, p *process, fh *os.File) error {
-	buf := bytes.NewBuffer(make([]byte, 0, streamBufferBytes)) // 4MiB is the max size of a GRPC request
+type stderrSender interface {
+	Send(*StderrOutput) error
+}
+
+func (s *processServiceServer) streamStdoutOutput(ss stdoutSender, p *process, fh *os.File) error {
+	buf := [streamBufferBytes]byte{} // 4MiB is the max size of a GRPC request
 	t := time.NewTicker(s.tailTickDuration)
 	for {
-		n, err := buf.ReadFrom(fh)
+		n, err := fh.Read(buf[:])
 		switch {
-		case err != nil:
-			return err
-		case n == 0:
+		case err == io.EOF && n == 0:
 			select {
 			case <-p.doneCh:
 				return nil
@@ -162,13 +198,39 @@ func (s *processServiceServer) streamOutput(ss sender, p *process, fh *os.File) 
 			}
 			<-t.C
 			continue
+		case err != nil:
+			return err
 		}
-		o := &Output{Output: buf.String()}
+		o := &StdoutOutput{Stream: string(buf[:n])}
 		err = ss.Send(o)
 		if err != nil {
 			return err
 		}
-		buf.Reset()
+	}
+}
+
+func (s *processServiceServer) streamStderrOutput(ss stderrSender, p *process, fh *os.File) error {
+	buf := [streamBufferBytes]byte{} // 4MiB is the max size of a GRPC request
+	t := time.NewTicker(s.tailTickDuration)
+	for {
+		n, err := fh.Read(buf[:])
+		switch {
+		case err == io.EOF && n == 0:
+			select {
+			case <-p.doneCh:
+				return nil
+			default:
+			}
+			<-t.C
+			continue
+		case err != nil:
+			return err
+		}
+		o := &StderrOutput{Stream: string(buf[:n])}
+		err = ss.Send(o)
+		if err != nil {
+			return err
+		}
 	}
 }
 
@@ -188,6 +250,12 @@ func processToProto(p *process) *Process {
 		ps.State = ProcessState_PROCESS_STATE_RUNNING
 	}
 	return ps
+}
+
+func processToProtoWithLock(p *process) *Process {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return processToProto(p)
 }
 
 type Server struct {

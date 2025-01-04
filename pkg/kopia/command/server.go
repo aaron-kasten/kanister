@@ -74,7 +74,7 @@ func ServerStart(cmdArgs ServerStartCommandArgs) []string {
 
 	if cmdArgs.Background {
 		// To start the server and run in the background
-		args = args.AppendLoggable(redirectToDevNull, runInBackground)
+		//args = args.AppendLoggable(redirectToDevNull, runInBackground)
 	}
 
 	return bashCommand(args)

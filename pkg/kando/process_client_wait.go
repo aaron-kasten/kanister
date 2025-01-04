@@ -15,46 +15,50 @@
 package kando
 
 import (
-	"context"
 	"os"
-	"strconv"
 
-	"github.com/spf13/cobra"
-
+	"context"
+	"fmt"
 	"github.com/kanisterio/kanister/pkg/kanx"
-	"errors"
+	"github.com/spf13/cobra"
+	"google.golang.org/protobuf/encoding/protojson"
+	"strconv"
 )
 
-func newProcessClientOutputCommand() *cobra.Command {
+func newProcessClientWaitCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "output",
-		Short: "output",
-		RunE:  runProcessClientOutput,
+		Use:   "wait",
+		Short: "wait",
+		RunE:  runProcessClientWait,
 	}
 	return cmd
 }
 
-func runProcessClientOutput(cmd *cobra.Command, args []string) error {
+func runProcessClientWait(cmd *cobra.Command, args []string) error {
 	cmd.SetContext(context.Background())
-	addr, err := processAddressFlagValue(cmd)
-	if err != nil {
-		return err
-	}
 	pid, err := strconv.Atoi(args[0])
 	if err != nil {
 		return err
 	}
-	//asJSON := processAsJSONFlagValue(cmd)
+	addr, err := processAddressFlagValue(cmd)
+	if err != nil {
+		return err
+	}
+	asJSON := processAsJSONFlagValue(cmd)
 	cmd.SilenceUsage = true
-	outc := make(chan error, 2)
-	defer close(outc)
-	go func() {
-		outc <- kanx.Stdout(cmd.Context(), addr, int64(pid), os.Stdout)
-	}()
-	go func() {
-		outc <- kanx.Stderr(cmd.Context(), addr, int64(pid), os.Stderr)
-	}()
-	errc0 := <-outc
-	errc1 := <-outc
-	return errors.Join(errc0, errc1)
+	p, err := kanx.WaitProcess(cmd.Context(), addr, int64(pid))
+	if err != nil {
+		return err
+	}
+	out := os.Stdout
+	if asJSON {
+		buf, err := protojson.Marshal(p)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(out, string(buf))
+	} else {
+		fmt.Fprintln(out, "Process: ", p.String())
+	}
+	return nil
 }

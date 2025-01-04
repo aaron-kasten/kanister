@@ -5,10 +5,11 @@ option go_package = "github.com/kanisterio/kanister/pkg/kanx";
 package kanx;
 
 service ProcessService {
-  rpc CreateProcesses (CreateProcessRequest) returns (Process) {}
+  rpc CreateProcess (CreateProcessRequest) returns (Process) {}
+  rpc GetProcess (ProcessPidRequest) returns (Process) {}
   rpc ListProcesses (ListProcessesRequest) returns (stream Process) {}
-  rpc Stdout (ProcessOutputRequest) returns (stream Output) {}
-  rpc Stderr (ProcessOutputRequest) returns (stream Output) {}
+  rpc Stdout (ProcessPidRequest) returns (stream StdoutOutput) {}
+  rpc Stderr (ProcessPidRequest) returns (stream StderrOutput) {}
 }
 
 message CreateProcessRequest {
@@ -19,7 +20,7 @@ message CreateProcessRequest {
 message ListProcessesRequest {
 }
 
-message ProcessOutputRequest {
+message ProcessPidRequest {
   int64 pid = 1;
 }
 
@@ -37,6 +38,22 @@ enum ProcessState {
   PROCESS_STATE_FAILED = 3;
 }
 
-message Output {
-    string output = 1;
+enum ProcessOutputStream {
+  PROCESS_OUTPUT_UNSPECIFIED = 0;
+  PROCESS_OUTPUT_STDOUT = 1;
+  PROCESS_OUTPUT_STDERR = 2;
+}
+
+enum OutputPort {
+  OUTPUT_UNSPECIFIED = 0;
+  OUTPUT_STDOUT = 1;
+  OUTPUT_STDERR = 2;
+}
+
+message StdoutOutput {
+  string stream = 1;
+}
+
+message StderrOutput {
+  string stream = 1;
 }

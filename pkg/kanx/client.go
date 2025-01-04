@@ -37,7 +37,7 @@ func CreateProcess(ctx context.Context, addr string, name string, args []string)
 		Name: name,
 		Args: args,
 	}
-	return c.CreateProcesses(ctx, in)
+	return c.CreateProcess(ctx, in)
 }
 
 func ListProcesses(ctx context.Context, addr string) ([]*Process, error) {
@@ -64,6 +64,22 @@ func ListProcesses(ctx context.Context, addr string) ([]*Process, error) {
 	}
 }
 
+func GetProcess(ctx context.Context, addr string, pid int64) (*Process, error) {
+	conn, err := newGRPCConnection(addr)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close() //nolint:errcheck
+	c := NewProcessServiceClient(conn)
+	wpc, err := c.GetProcess(ctx, &ProcessPidRequest{
+		Pid: pid,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return wpc, nil
+}
+
 func Stdout(ctx context.Context, addr string, pid int64, out io.Writer) error {
 	conn, err := newGRPCConnection(addr)
 	if err != nil {
@@ -71,14 +87,14 @@ func Stdout(ctx context.Context, addr string, pid int64, out io.Writer) error {
 	}
 	defer conn.Close() //nolint:errcheck
 	c := NewProcessServiceClient(conn)
-	in := &ProcessOutputRequest{
+	in := &ProcessPidRequest{
 		Pid: pid,
 	}
-	sc, err := c.Stdout(ctx, in)
+	poc, err := c.Stdout(ctx, in)
 	if err != nil {
 		return err
 	}
-	return output(ctx, out, sc)
+	return stdoutOutput(ctx, out, poc)
 }
 
 func Stderr(ctx context.Context, addr string, pid int64, out io.Writer) error {
@@ -88,21 +104,25 @@ func Stderr(ctx context.Context, addr string, pid int64, out io.Writer) error {
 	}
 	defer conn.Close() //nolint:errcheck
 	c := NewProcessServiceClient(conn)
-	in := &ProcessOutputRequest{
+	in := &ProcessPidRequest{
 		Pid: pid,
 	}
-	sc, err := c.Stderr(ctx, in)
+	poc, err := c.Stderr(ctx, in)
 	if err != nil {
 		return err
 	}
-	return output(ctx, out, sc)
+	return stderrOutput(ctx, out, poc)
 }
 
-type recver interface {
-	Recv() (*Output, error)
+type stdoutRecver interface {
+	Recv() (*StdoutOutput, error)
 }
 
-func output(ctx context.Context, out io.Writer, sc recver) error {
+type stderrRecver interface {
+	Recv() (*StderrOutput, error)
+}
+
+func stderrOutput(ctx context.Context, out io.Writer, sc stderrRecver) error {
 	for {
 		p, err := sc.Recv()
 		switch {
@@ -111,7 +131,23 @@ func output(ctx context.Context, out io.Writer, sc recver) error {
 		case err != nil:
 			return err
 		}
-		_, err = out.Write([]byte(p.Output))
+		_, err = out.Write([]byte(p.Stream))
+		if err != nil {
+			return err
+		}
+	}
+}
+
+func stdoutOutput(ctx context.Context, out io.Writer, sc stdoutRecver) error {
+	for {
+		p, err := sc.Recv()
+		switch {
+		case err == io.EOF:
+			return nil
+		case err != nil:
+			return err
+		}
+		_, err = out.Write([]byte(p.Stream))
 		if err != nil {
 			return err
 		}

@@ -111,13 +111,13 @@ func (rss *RepositoryServerSuite) setupKopiaRepositoryServer(c *check.C) {
 	c.Log("Connecting with Kopia Repository...")
 	repoConnectCmd, err := kopiacmd.RepositoryConnectCommand(repoCommandArgs)
 	c.Assert(err, check.IsNil)
-	_, err = ExecCommand(c, repoConnectCmd...)
+	_, err = ExecCommandCombinedOutput(c, repoConnectCmd...)
 	if err != nil && strings.Contains(err.Error(), "error connecting to repository") {
 		// If connection fails, create Kopia Repository
 		c.Log("Creating Kopia Repository...")
 		repoCreateCmd, err := kopiacmd.RepositoryCreateCommand(repoCommandArgs)
 		c.Assert(err, check.IsNil)
-		_, err = ExecCommand(c, repoCreateCmd...)
+		_, err = ExecCommandCombinedOutput(c, repoCreateCmd...)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -139,7 +139,7 @@ func (rss *RepositoryServerSuite) setupKopiaRepositoryServer(c *check.C) {
 		Background:       true,
 	}
 	serverStartCmd := kopiacmd.ServerStart(serverStartCommandArgs)
-	_, err = ExecCommand(c, serverStartCmd...)
+	_, err = ExecCommandCombinedOutput(c, serverStartCmd...)
 	c.Assert(err, check.IsNil)
 
 	// Adding Users to Kopia Repository Server
@@ -153,7 +153,7 @@ func (rss *RepositoryServerSuite) setupKopiaRepositoryServer(c *check.C) {
 		UserPassword: rss.testUserPassword,
 	}
 	serverAddUserCmd := kopiacmd.ServerAddUser(serverAddUserCommandArgs)
-	_, err = ExecCommand(c, serverAddUserCmd...)
+	_, err = ExecCommandCombinedOutput(c, serverAddUserCmd...)
 	c.Assert(err, check.IsNil)
 
 	// Getting Fingerprint of Kopia Repository Server
@@ -173,7 +173,7 @@ func (rss *RepositoryServerSuite) setupKopiaRepositoryServer(c *check.C) {
 		Fingerprint:    rss.fingerprint,
 	}
 	serverRefreshCmd := kopiacmd.ServerRefresh(serverRefreshCommandArgs)
-	_, err = ExecCommand(c, serverRefreshCmd...)
+	_, err = ExecCommandCombinedOutput(c, serverRefreshCmd...)
 	c.Assert(err, check.IsNil)
 
 	// Check Server Status
@@ -189,7 +189,7 @@ func (rss *RepositoryServerSuite) setupKopiaRepositoryServer(c *check.C) {
 		Fingerprint:    rss.fingerprint,
 	}
 	serverStatusCmd := kopiacmd.ServerStatus(serverStatusCommandArgs)
-	out, err := ExecCommand(c, serverStatusCmd...)
+	out, err := ExecCommandCombinedOutput(c, serverStatusCmd...)
 	if !strings.Contains(out, "IDLE") && out != "" {
 		c.Fail()
 	}

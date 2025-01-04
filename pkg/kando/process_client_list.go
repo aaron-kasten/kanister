@@ -23,6 +23,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/kanisterio/kanister/pkg/kanx"
+	"context"
 )
 
 func newProcessClientListCommand() *cobra.Command {
@@ -39,6 +40,7 @@ func runProcessClientList(cmd *cobra.Command, _args []string) error {
 }
 
 func runProcessClientListWithOutput(out io.Writer, cmd *cobra.Command) error {
+	cmd.SetContext(context.Background())
 	addr, err := processAddressFlagValue(cmd)
 	if err != nil {
 		return err

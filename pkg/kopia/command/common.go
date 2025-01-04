@@ -61,7 +61,12 @@ type CommandArgs struct {
 
 func bashCommand(args logsafe.Cmd) []string {
 	log.Info().Print("Kopia Command", field.M{"Command": args.String()})
-	return []string{"bash", "-o", "errexit", "-c", args.PlainText()}
+	return append([]string{"bash", "-o", "errexit", "-c"}, args.StringSliceCMD()...)
+}
+
+func kanxCommand(args logsafe.Cmd) []string {
+	log.Info().Print("Kopia Command", field.M{"Command": args.String()})
+	return append([]string{"kando", "process", "client", "create", "--as-json", "--"}, args.StringSliceCMD()...)
 }
 
 func stringSliceCommand(args logsafe.Cmd) []string {

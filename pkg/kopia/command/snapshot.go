@@ -150,7 +150,7 @@ func SnapListAll(cmdArgs SnapListAllCommandArgs) []string {
 		jsonFlag,
 	)
 
-	return stringSliceCommand(args)
+	return kanxCommand(args)
 }
 
 type SnapListAllWithSnapIDsCommandArgs struct {

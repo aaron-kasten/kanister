@@ -20,7 +20,7 @@ import (
 	"os"
 
 	"golang.org/x/oauth2/google"
-	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/api/compute/v1"
 	"gopkg.in/check.v1"
 	corev1 "k8s.io/api/core/v1"
 
@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	TestS3BucketName = "tests.kanister.io"
+	TestS3BucketName = "aarona.tests.kanister.io"
 	TestS3Region     = "us-west-2"
 )
 
