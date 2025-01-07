@@ -16,7 +16,7 @@ import (
 	"github.com/kanisterio/kanister/pkg/field"
 	"github.com/kanisterio/kanister/pkg/log"
 	"sync"
-	"slices"
+	"maps"
 )
 
 const (
@@ -43,6 +43,7 @@ type process struct {
 	stderr   *os.File
 	exitCode int
 	err      error
+	fault    error
 	cancel   context.CancelFunc
 }
 
@@ -124,9 +125,84 @@ func (s *processServiceServer) GetProcess(ctx context.Context, grp *ProcessPidRe
 	return ps, nil
 }
 
+func (s *processServiceServer) RemoveProcess(ctx context.Context, grp *ProcessPidRequest) (*Process, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	q, ok := s.processByPid[grp.GetPid()]
+	if !ok {
+		return nil, errkit.WithStack(errProcessNotFound)
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	terminated := false
+	select {
+	case <-q.doneCh:
+		terminated = true
+	default:
+	}
+	if !terminated {
+		return processToProto(q), errkit.WithStack(errProcessRunning)
+	}
+	var err error
+	if q.stderr != nil {
+		err = os.Remove(q.stderr.Name())
+	}
+	if err == nil {
+		q.stderr = nil
+	} else {
+		q.fault = err
+		return processToProto(q), err
+	}
+	if q.stdout != nil {
+		err = os.Remove(q.stdout.Name())
+	}
+	if err == nil {
+		q.stdout = nil
+	} else {
+		q.fault = err
+		return processToProto(q), err
+	}
+	delete(s.processByPid, grp.GetPid())
+	return processToProto(q), nil
+}
+
+func (s *processServiceServer) SignalProcess(ctx context.Context, grp *SignalProcessRequest) (*Process, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	q, ok := s.processByPid[grp.GetPid()]
+	if !ok {
+		return nil, errkit.WithStack(errProcessNotFound)
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	// low level signal call
+	syssig := syscall.Signal(grp.Signal)
+	err := q.cmd.Process.Signal(syssig)
+	if err != nil {
+		q.fault = err
+		return processToProto(q), err
+	}
+	return processToProto(q), nil
+}
+
+func (s *processServiceServer) WaitProcess(ctx context.Context, wpr *ProcessPidRequest) (*Process, error) {
+	s.mu.Lock()
+	q, ok := s.processByPid[wpr.GetPid()]
+	s.mu.Unlock()
+	if !ok {
+		return nil, errkit.WithStack(errProcessNotFound)
+	}
+	select {
+	case <-ctx.Done():
+		return processToProtoWithLock(q), ctx.Err()
+	case <-q.doneCh:
+		return processToProtoWithLock(q), nil
+	}
+}
+
 func (s *processServiceServer) ListProcesses(lpr *ListProcessesRequest, lps ProcessService_ListProcessesServer) error {
 	s.mu.Lock()
-	processes := slices.Clone(s.processes)
+	processes := maps.Clone(s.processByPid)
 	s.mu.Unlock()
 	for _, p := range processes {
 		ps := processToProtoWithLock(p)
@@ -138,7 +214,10 @@ func (s *processServiceServer) ListProcesses(lpr *ListProcessesRequest, lps Proc
 	return nil
 }
 
-var errProcessNotFound = errkit.NewSentinelErr("Process not found")
+var (
+	errProcessNotFound = errkit.NewSentinelErr("Process not found")
+	errProcessRunning  = errkit.NewSentinelErr("Process running")
+)
 
 func (s *processServiceServer) Stdout(por *ProcessPidRequest, ss ProcessService_StdoutServer) error {
 	s.mu.Lock()

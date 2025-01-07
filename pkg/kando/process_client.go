@@ -31,6 +31,8 @@ func newProcessClientCommand() *cobra.Command {
 	cmd.AddCommand(newProcessClientGetCommand())
 	cmd.AddCommand(newProcessClientListCommand())
 	cmd.AddCommand(newProcessClientOutputCommand())
+	cmd.AddCommand(newProcessClientRemoveCommand())
+	cmd.AddCommand(newProcessClientWaitCommand())
 	cmd.PersistentFlags().BoolP(processAsJSONFlagName, "j", false, "Display output as json")
 	return cmd
 }

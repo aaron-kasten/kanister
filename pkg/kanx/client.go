@@ -64,6 +64,39 @@ func ListProcesses(ctx context.Context, addr string) ([]*Process, error) {
 	}
 }
 
+func WaitProcess(ctx context.Context, addr string, pid int64) (*Process, error) {
+	conn, err := newGRPCConnection(addr)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close() //nolint:errcheck
+	c := NewProcessServiceClient(conn)
+	wpc, err := c.WaitProcess(ctx, &ProcessPidRequest{
+		Pid: pid,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return wpc, nil
+}
+
+func SignalProcess(ctx context.Context, addr string, pid int64, sig int32) (*Process, error) {
+	conn, err := newGRPCConnection(addr)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close() //nolint:errcheck
+	c := NewProcessServiceClient(conn)
+	wpc, err := c.SignalProcess(ctx, &SignalProcessRequest{
+		Pid:    pid,
+		Signal: sig,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return wpc, nil
+}
+
 func GetProcess(ctx context.Context, addr string, pid int64) (*Process, error) {
 	conn, err := newGRPCConnection(addr)
 	if err != nil {
@@ -72,6 +105,22 @@ func GetProcess(ctx context.Context, addr string, pid int64) (*Process, error) {
 	defer conn.Close() //nolint:errcheck
 	c := NewProcessServiceClient(conn)
 	wpc, err := c.GetProcess(ctx, &ProcessPidRequest{
+		Pid: pid,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return wpc, nil
+}
+
+func RemoveProcess(ctx context.Context, addr string, pid int64) (*Process, error) {
+	conn, err := newGRPCConnection(addr)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close() //nolint:errcheck
+	c := NewProcessServiceClient(conn)
+	wpc, err := c.RemoveProcess(ctx, &ProcessPidRequest{
 		Pid: pid,
 	})
 	if err != nil {

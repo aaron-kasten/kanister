@@ -21,6 +21,9 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	ProcessService_CreateProcess_FullMethodName = "/kanx.ProcessService/CreateProcess"
 	ProcessService_GetProcess_FullMethodName    = "/kanx.ProcessService/GetProcess"
+	ProcessService_RemoveProcess_FullMethodName = "/kanx.ProcessService/RemoveProcess"
+	ProcessService_SignalProcess_FullMethodName = "/kanx.ProcessService/SignalProcess"
+	ProcessService_WaitProcess_FullMethodName   = "/kanx.ProcessService/WaitProcess"
 	ProcessService_ListProcesses_FullMethodName = "/kanx.ProcessService/ListProcesses"
 	ProcessService_Stdout_FullMethodName        = "/kanx.ProcessService/Stdout"
 	ProcessService_Stderr_FullMethodName        = "/kanx.ProcessService/Stderr"
@@ -32,6 +35,9 @@ const (
 type ProcessServiceClient interface {
 	CreateProcess(ctx context.Context, in *CreateProcessRequest, opts ...grpc.CallOption) (*Process, error)
 	GetProcess(ctx context.Context, in *ProcessPidRequest, opts ...grpc.CallOption) (*Process, error)
+	RemoveProcess(ctx context.Context, in *ProcessPidRequest, opts ...grpc.CallOption) (*Process, error)
+	SignalProcess(ctx context.Context, in *SignalProcessRequest, opts ...grpc.CallOption) (*Process, error)
+	WaitProcess(ctx context.Context, in *ProcessPidRequest, opts ...grpc.CallOption) (*Process, error)
 	ListProcesses(ctx context.Context, in *ListProcessesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Process], error)
 	Stdout(ctx context.Context, in *ProcessPidRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StdoutOutput], error)
 	Stderr(ctx context.Context, in *ProcessPidRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StderrOutput], error)
@@ -59,6 +65,36 @@ func (c *processServiceClient) GetProcess(ctx context.Context, in *ProcessPidReq
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Process)
 	err := c.cc.Invoke(ctx, ProcessService_GetProcess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *processServiceClient) RemoveProcess(ctx context.Context, in *ProcessPidRequest, opts ...grpc.CallOption) (*Process, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Process)
+	err := c.cc.Invoke(ctx, ProcessService_RemoveProcess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *processServiceClient) SignalProcess(ctx context.Context, in *SignalProcessRequest, opts ...grpc.CallOption) (*Process, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Process)
+	err := c.cc.Invoke(ctx, ProcessService_SignalProcess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *processServiceClient) WaitProcess(ctx context.Context, in *ProcessPidRequest, opts ...grpc.CallOption) (*Process, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Process)
+	err := c.cc.Invoke(ctx, ProcessService_WaitProcess_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -128,6 +164,9 @@ type ProcessService_StderrClient = grpc.ServerStreamingClient[StderrOutput]
 type ProcessServiceServer interface {
 	CreateProcess(context.Context, *CreateProcessRequest) (*Process, error)
 	GetProcess(context.Context, *ProcessPidRequest) (*Process, error)
+	RemoveProcess(context.Context, *ProcessPidRequest) (*Process, error)
+	SignalProcess(context.Context, *SignalProcessRequest) (*Process, error)
+	WaitProcess(context.Context, *ProcessPidRequest) (*Process, error)
 	ListProcesses(*ListProcessesRequest, grpc.ServerStreamingServer[Process]) error
 	Stdout(*ProcessPidRequest, grpc.ServerStreamingServer[StdoutOutput]) error
 	Stderr(*ProcessPidRequest, grpc.ServerStreamingServer[StderrOutput]) error
@@ -146,6 +185,15 @@ func (UnimplementedProcessServiceServer) CreateProcess(context.Context, *CreateP
 }
 func (UnimplementedProcessServiceServer) GetProcess(context.Context, *ProcessPidRequest) (*Process, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetProcess not implemented")
+}
+func (UnimplementedProcessServiceServer) RemoveProcess(context.Context, *ProcessPidRequest) (*Process, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveProcess not implemented")
+}
+func (UnimplementedProcessServiceServer) SignalProcess(context.Context, *SignalProcessRequest) (*Process, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignalProcess not implemented")
+}
+func (UnimplementedProcessServiceServer) WaitProcess(context.Context, *ProcessPidRequest) (*Process, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WaitProcess not implemented")
 }
 func (UnimplementedProcessServiceServer) ListProcesses(*ListProcessesRequest, grpc.ServerStreamingServer[Process]) error {
 	return status.Errorf(codes.Unimplemented, "method ListProcesses not implemented")
@@ -213,6 +261,60 @@ func _ProcessService_GetProcess_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProcessService_RemoveProcess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ProcessPidRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProcessServiceServer).RemoveProcess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProcessService_RemoveProcess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProcessServiceServer).RemoveProcess(ctx, req.(*ProcessPidRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProcessService_SignalProcess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SignalProcessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProcessServiceServer).SignalProcess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProcessService_SignalProcess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProcessServiceServer).SignalProcess(ctx, req.(*SignalProcessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProcessService_WaitProcess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ProcessPidRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProcessServiceServer).WaitProcess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProcessService_WaitProcess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProcessServiceServer).WaitProcess(ctx, req.(*ProcessPidRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProcessService_ListProcesses_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ListProcessesRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -260,6 +362,18 @@ var ProcessService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetProcess",
 			Handler:    _ProcessService_GetProcess_Handler,
+		},
+		{
+			MethodName: "RemoveProcess",
+			Handler:    _ProcessService_RemoveProcess_Handler,
+		},
+		{
+			MethodName: "SignalProcess",
+			Handler:    _ProcessService_SignalProcess_Handler,
+		},
+		{
+			MethodName: "WaitProcess",
+			Handler:    _ProcessService_WaitProcess_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

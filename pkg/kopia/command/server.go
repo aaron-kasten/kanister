@@ -16,6 +16,7 @@ package command
 
 import (
 	"github.com/kanisterio/kanister/pkg/kopia/cli/args"
+	"github.com/kanisterio/kanister/pkg/logsafe"
 )
 
 type ServerStartCommandArgs struct {
@@ -77,7 +78,7 @@ func ServerStart(cmdArgs ServerStartCommandArgs) []string {
 		//args = args.AppendLoggable(redirectToDevNull, runInBackground)
 	}
 
-	return bashCommand(args)
+	return kanxCommand(logsafe.NewLoggable(bashCommand(args)...))
 }
 
 type ServerRefreshCommandArgs struct {

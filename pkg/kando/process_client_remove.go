@@ -16,25 +16,25 @@ package kando
 
 import (
 	"context"
-	"os"
 	"strconv"
 
 	"github.com/spf13/cobra"
 
 	"github.com/kanisterio/kanister/pkg/kanx"
-	"github.com/kanisterio/errkit"
+	"fmt"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
-func newProcessClientOutputCommand() *cobra.Command {
+func newProcessClientRemoveCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "output",
-		Short: "output",
-		RunE:  runProcessClientOutput,
+		Use:   "remove",
+		Short: "remove",
+		RunE:  runProcessClientRemove,
 	}
 	return cmd
 }
 
-func runProcessClientOutput(cmd *cobra.Command, args []string) error {
+func runProcessClientRemove(cmd *cobra.Command, args []string) error {
 	cmd.SetContext(context.Background())
 	addr, err := processAddressFlagValue(cmd)
 	if err != nil {
@@ -44,16 +44,14 @@ func runProcessClientOutput(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	//asJSON := processAsJSONFlagValue(cmd)
+	asJSON := processAsJSONFlagValue(cmd)
 	cmd.SilenceUsage = true
-	errc := make(chan error, 2)
-	go func() {
-		errc <- kanx.Stdout(cmd.Context(), addr, int64(pid), os.Stdout)
-	}()
-	go func() {
-		errc <- kanx.Stderr(cmd.Context(), addr, int64(pid), os.Stderr)
-	}()
-	err = errkit.Append(<-errc, <-errc)
-	close(errc)
+	p, err := kanx.RemoveProcess(cmd.Context(), addr, int64(pid))
+	if !asJSON {
+		fmt.Printf("Removed process: %v\n", p)
+		return err
+	}
+	buf, err := protojson.Marshal(p)
+	fmt.Println(string(buf))
 	return err
 }
