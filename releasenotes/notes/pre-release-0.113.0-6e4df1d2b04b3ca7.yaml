@@ -1,0 +1,10 @@
+---
+features:
+  - Allow signals to be sent to ``kando`` run processes
+  - Execute and follow output of ``kando`` run processes
+upgrade:
+  - Upgrade to K8s 1.31 API
+deprecations:
+  - K8s VolumeSnapshot is now GA, remove support for beta and alpha APIs
+other:
+  - Change ``TIMEOUT_WORKER_POD_READY`` environment variable to ``KANISTER_POD_READY_WAIT_TIMEOUT``
