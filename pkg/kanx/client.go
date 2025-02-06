@@ -2,9 +2,11 @@ package kanx
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/url"
+	"os"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -37,7 +39,28 @@ func CreateProcess(ctx context.Context, addr string, name string, args []string)
 		Name: name,
 		Args: args,
 	}
-	return c.CreateProcesses(ctx, in)
+	return c.CreateProcess(ctx, in)
+}
+
+func GetProcess(ctx context.Context, addr string, pid int64) (*Process, error) {
+	conn, err := newGRPCConnection(addr)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err := conn.Close()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+		}
+	}()
+	c := NewProcessServiceClient(conn)
+	wpc, err := c.GetProcess(ctx, &ProcessPidRequest{
+		Pid: pid,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return wpc, nil
 }
 
 func ListProcesses(ctx context.Context, addr string) ([]*Process, error) {
@@ -64,6 +87,23 @@ func ListProcesses(ctx context.Context, addr string) ([]*Process, error) {
 	}
 }
 
+func SignalProcess(ctx context.Context, addr string, pid int64, signal int64) (*Process, error) {
+	conn, err := newGRPCConnection(addr)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close() //nolint:errcheck
+	c := NewProcessServiceClient(conn)
+	wpc, err := c.SignalProcess(ctx, &SignalProcessRequest{
+		Pid:    pid,
+		Signal: signal,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return wpc, nil
+}
+
 func Stdout(ctx context.Context, addr string, pid int64, out io.Writer) error {
 	conn, err := newGRPCConnection(addr)
 	if err != nil {
@@ -71,14 +111,14 @@ func Stdout(ctx context.Context, addr string, pid int64, out io.Writer) error {
 	}
 	defer conn.Close() //nolint:errcheck
 	c := NewProcessServiceClient(conn)
-	in := &ProcessOutputRequest{
+	in := &ProcessPidRequest{
 		Pid: pid,
 	}
-	sc, err := c.Stdout(ctx, in)
+	poc, err := c.Stdout(ctx, in)
 	if err != nil {
 		return err
 	}
-	return output(ctx, out, sc)
+	return output(ctx, out, poc)
 }
 
 func Stderr(ctx context.Context, addr string, pid int64, out io.Writer) error {
@@ -88,14 +128,14 @@ func Stderr(ctx context.Context, addr string, pid int64, out io.Writer) error {
 	}
 	defer conn.Close() //nolint:errcheck
 	c := NewProcessServiceClient(conn)
-	in := &ProcessOutputRequest{
+	in := &ProcessPidRequest{
 		Pid: pid,
 	}
-	sc, err := c.Stderr(ctx, in)
+	poc, err := c.Stderr(ctx, in)
 	if err != nil {
 		return err
 	}
-	return output(ctx, out, sc)
+	return output(ctx, out, poc)
 }
 
 type recver interface {
@@ -116,4 +156,10 @@ func output(ctx context.Context, out io.Writer, sc recver) error {
 			return err
 		}
 	}
+}
+
+type ProcessExitCode int
+
+func (e ProcessExitCode) Error() string {
+	return fmt.Sprintf("exit status %d", e)
 }

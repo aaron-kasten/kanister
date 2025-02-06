@@ -57,7 +57,7 @@ Regardless of your familiarity with this project, documentation help is always
 appreciated.
 
 Once you found an issue that interests you, post a comment to the issue, asking
-the maintainers to assign it to you.
+the [maintainers](MAINTAINERS.md) to assign it to you.
 
 ### Coding Standard
 
@@ -71,6 +71,10 @@ Specifically, this means:
 
 The [golangci-lint](https://golangci-lint.run/) tool is used to enforce many
 styling and safety rules.
+
+When creating or updating code, ensure the copyright year and author header are up to date
+by statically copying the [boilerplate header](/build/boilerplate.go.txt) at the top or
+by including it for dynamic source code files.
 
 ### Creating A Local Build
 
@@ -128,7 +132,7 @@ discussion
 The pull request template is designed to help you convey this information.
 
 In general, smaller pull requests are easier to review and merge than bigger
-ones. It's always a good idea to collaborate with the maintainers to determine
+ones. It's always a good idea to collaborate with the [maintainers](MAINTAINERS.md) to determine
 how best to break up a big pull request.
 
 Once the maintainers approve your PR, they will label it as `kueue`. The

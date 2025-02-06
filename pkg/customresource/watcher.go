@@ -16,8 +16,7 @@
 package customresource
 
 import (
-	"errors"
-
+	"github.com/kanisterio/errkit"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
@@ -26,7 +25,7 @@ import (
 
 var (
 	// ErrVersionOutdated indicates that the custom resource is outdated and needs to be refreshed
-	ErrVersionOutdated = errors.New("requested version is outdated in apiserver")
+	ErrVersionOutdated = errkit.NewSentinelErr("requested version is outdated in apiserver")
 )
 
 // ResourceWatcher watches a custom resource for desired state
@@ -56,19 +55,21 @@ func (w *ResourceWatcher) Watch(objType runtime.Object, done <-chan struct{}) {
 		w.resource.Plural,
 		w.namespace,
 		fields.Everything())
-	_, controller := cache.NewInformer(
-		source,
+	_, controller := cache.NewInformerWithOptions(
+		cache.InformerOptions{
+			ListerWatcher: source,
 
-		// The object type.
-		objType,
+			// The object type.
+			ObjectType: objType,
 
-		// resyncPeriod
-		// Every resyncPeriod, all resources in the cache will retrigger events.
-		// Set to 0 to disable the resync.
-		0,
+			// resyncPeriod
+			// Every resyncPeriod, all resources in the cache will retrigger events.
+			// Set to 0 to disable the resync.
+			ResyncPeriod: 0,
 
-		// Your custom resource event handlers.
-		w.resourceEventHandlers)
+			// Your custom resource event handlers.
+			Handler: w.resourceEventHandlers,
+		})
 
 	go controller.Run(done)
 	<-done
