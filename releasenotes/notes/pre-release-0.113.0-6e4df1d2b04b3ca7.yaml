@@ -4,6 +4,7 @@ features:
   - Execute and follow output of ``kando`` run processes
 upgrade:
   - Upgrade to K8s 1.31 API
+  - Bump Kopia dependecy to git SHA 1bceb71
 deprecations:
   - K8s VolumeSnapshot is now GA, remove support for beta and alpha APIs
 other:
