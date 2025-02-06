@@ -32,7 +32,8 @@ func newProcessClientOutputCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE:  runProcessClientOutput,
 	}
-	procesSignalProxyAddFlag(cmd)
+	processSignalProxyAddFlag(cmd)
+	processExitProxyAddFlag(cmd)
 	return cmd
 }
 
@@ -49,7 +50,11 @@ func runProcessClientOutputWithOutput(stdout, stderr io.Writer, cmd *cobra.Comma
 	if err != nil {
 		return err
 	}
-	proxy, err := processSignalProxyFlagValue(cmd)
+	signalProxy, err := processSignalProxyFlagValue(cmd)
+	if err != nil {
+		return err
+	}
+	exitProxy, err := processExitProxyFlagValue(cmd)
 	if err != nil {
 		return err
 	}
@@ -57,7 +62,7 @@ func runProcessClientOutputWithOutput(stdout, stderr io.Writer, cmd *cobra.Comma
 	ctx, canfn := context.WithCancel(cmd.Context())
 	defer canfn()
 	errc := make(chan error)
-	if proxy {
+	if signalProxy {
 		proxySetup(ctx, addr, pid)
 	}
 	go func() { errc <- kanx.Stdout(ctx, addr, pid, stdout) }()
@@ -68,6 +73,13 @@ func runProcessClientOutputWithOutput(stdout, stderr io.Writer, cmd *cobra.Comma
 			// workaround bug in errkit
 			err = errkit.Append(err, err0)
 		}
+	}
+	close(errc)
+	if err != nil {
+		return err
+	}
+	if !exitProxy {
+		return nil
 	}
 	return err
 }

@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"net/url"
-	"os"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -28,6 +27,8 @@ func newGRPCConnection(addr string) (*grpc.ClientConn, error) {
 	return grpc.NewClient(addr, opts...)
 }
 
+// CreateProcess creates a new process on the server and returns the process metadata.
+// Name represents os.Args[0] of the command line, while args represents os.Args[1:]
 func CreateProcess(ctx context.Context, addr string, name string, args []string) (*Process, error) {
 	conn, err := newGRPCConnection(addr)
 	if err != nil {
@@ -42,17 +43,13 @@ func CreateProcess(ctx context.Context, addr string, name string, args []string)
 	return c.CreateProcess(ctx, in)
 }
 
+// GetProcess returns process metadata for the server process, pid.
 func GetProcess(ctx context.Context, addr string, pid int64) (*Process, error) {
 	conn, err := newGRPCConnection(addr)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		err := conn.Close()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "%s\n", err.Error())
-		}
-	}()
+	defer conn.Close() //nolint:errcheck
 	c := NewProcessServiceClient(conn)
 	wpc, err := c.GetProcess(ctx, &ProcessPidRequest{
 		Pid: pid,
@@ -63,6 +60,7 @@ func GetProcess(ctx context.Context, addr string, pid int64) (*Process, error) {
 	return wpc, nil
 }
 
+// ListProcesses list all processes on the server.
 func ListProcesses(ctx context.Context, addr string) ([]*Process, error) {
 	conn, err := newGRPCConnection(addr)
 	if err != nil {
@@ -87,6 +85,7 @@ func ListProcesses(ctx context.Context, addr string) ([]*Process, error) {
 	}
 }
 
+// SignalProcess send signal to process pid.
 func SignalProcess(ctx context.Context, addr string, pid int64, signal int64) (*Process, error) {
 	conn, err := newGRPCConnection(addr)
 	if err != nil {
@@ -104,6 +103,7 @@ func SignalProcess(ctx context.Context, addr string, pid int64, signal int64) (*
 	return wpc, nil
 }
 
+// Stdout write stdout from process pid to io.Writer out.
 func Stdout(ctx context.Context, addr string, pid int64, out io.Writer) error {
 	conn, err := newGRPCConnection(addr)
 	if err != nil {
@@ -121,6 +121,7 @@ func Stdout(ctx context.Context, addr string, pid int64, out io.Writer) error {
 	return output(ctx, out, poc)
 }
 
+// Stderr write stderr from process pid to io.Writer out.
 func Stderr(ctx context.Context, addr string, pid int64, out io.Writer) error {
 	conn, err := newGRPCConnection(addr)
 	if err != nil {
