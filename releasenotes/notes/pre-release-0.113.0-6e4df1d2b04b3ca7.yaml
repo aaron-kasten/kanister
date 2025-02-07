@@ -2,6 +2,9 @@
 features:
   - Allow signals to be sent to ``kando`` run processes
   - Execute and follow output of ``kando`` run processes
+fixes:
+  - The Kopia snapshot command output parser now skips the ignored and fatal error counts
+  - Set default namespace and serviceaccount for MultiContainerRun pods
 upgrade:
   - Upgrade to K8s 1.31 API
   - Bump Kopia dependecy to git SHA 1bceb71
@@ -9,3 +12,4 @@ deprecations:
   - K8s VolumeSnapshot is now GA, remove support for beta and alpha APIs
 other:
   - Change ``TIMEOUT_WORKER_POD_READY`` environment variable to ``KANISTER_POD_READY_WAIT_TIMEOUT``
+  - Errors are now handled with https://github.com/kanisterio/errkit across the board
