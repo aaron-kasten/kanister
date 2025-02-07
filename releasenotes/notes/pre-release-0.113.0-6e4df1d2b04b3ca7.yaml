@@ -1,7 +1,7 @@
 ---
 features:
-  - Allow signals to be sent to ``kando`` run processes
-  - Execute and follow output of ``kando`` run processes
+  - Added gRPC call to support sending of UNIX signals to ``kando`` managed processes
+  - Added command line option to follow stdout/stderr of ``kando`` managed processes
 upgrade:
   - Upgrade to K8s 1.31 API
   - Bump Kopia dependecy to git SHA 1bceb71
